@@ -5,7 +5,7 @@ import sys
 
 
 setup(name='ppb_tween',
-    version='0.1.0',
+    version='0.2.0',
     description='A tweening system for PursuedPyBear games.',
     author='Calvin Spealman',
     author_email='ironfroggy@gmail.com',
