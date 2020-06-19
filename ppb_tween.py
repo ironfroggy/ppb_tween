@@ -1,7 +1,7 @@
 from dataclasses import dataclass
-from time import monotonic
 
 import ppb
+from ppb.utils import get_time
 from ppb.systemslib import System
 
 import easing_functions 
@@ -105,6 +105,7 @@ class Tweener:
         self.name = name or f"tweener-{id(self)}"
         self.tweens = []
         self.callbacks = []
+        self.last_frame = get_time()
         # self.used = False
         # self.done = False
 
@@ -115,26 +116,36 @@ class Tweener:
     def is_tweening(self):
         return bool(self.tweens)
 
-    def tween(self, entity, attr, end_value, duration, **kwargs):
-        assert entity
+    def tween(self, entity, attr, *args, **kwargs):
+        if len(args) == 2:
+            end_value, duration = args
+            start_value = getattr(entity, attr)
+        elif len(args) == 3:
+            start_value, end_value, duration = args
         delay = kwargs.pop('delay', 0)
         self.used = True
-        start_time = monotonic() + delay
+        start_time = get_time() + delay
         self.tweens.append(Tween(
             start_time=start_time,
             end_time=start_time + duration,
             obj=entity,
             attr=attr,
-            start_value=None,
+            start_value=start_value,
             end_value=end_value,
             **kwargs,
         ))
     
+    def cancel(self):
+        self.tweens[:] = []
+        self.callbacks[:] = []
+    
     def when_done(self, func):
         self.callbacks.append(func)
 
-    def on_idle(self, update, signal):
-        t = monotonic()
+    def on_pre_render(self, update, signal):
+        t = get_time()
+        d = update.time_delta
+        self.last_frame = t
         clear = []
 
         for i, tween in enumerate(self.tweens):
@@ -168,7 +179,12 @@ class Tweening(System):
     def on_scene_started(cls, ev, signal):
         cls.scene = ev.scene
         cls.current_tweener = Tweener()
-        cls.scene.add(cls.current_tweener)
+        cls.scene.add(cls.current_tweener, tags=['tweener'])
+    
+    @classmethod
+    def on_scene_continued(cls, ev, signal):
+        cls.scene = ev.scene
+        cls.current_tweener = list(cls.scene.get(tag='tweener'))[0]
     
 
 def tween(*args, **kwargs):
